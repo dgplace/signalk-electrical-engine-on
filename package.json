@@ -1,7 +1,7 @@
 {
-  "name": "@meri-imperiumi/signalk-alternator-engine-on",
-  "version": "1.2.1",
-  "description": "Plugin to mark engine as running when alternator produces power",
+  "name": "signalk-electrical-engine-on",
+  "version": "2.0.0",
+  "description": "Signal K plugin that publishes propulsion started/stopped from a configurable electrical current or power path",
   "main": "index.js",
   "scripts": {
     "pretest": "eslint .",
@@ -9,18 +9,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/meri-imperiumi/signalk-alternator-engine-on.git"
+    "url": "git://github.com/dgplace/signalk-electrical-engine-on.git"
   },
   "keywords": [
     "signalk-node-server-plugin",
     "signalk-category-utility"
   ],
   "author": "Henri Bergius <henri.bergius@iki.fi>",
+  "contributors": [
+    "David Place"
+  ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/meri-imperiumi/signalk-alternator-engine-on/issues"
+    "url": "https://github.com/dgplace/signalk-electrical-engine-on/issues"
   },
-  "homepage": "https://github.com/meri-imperiumi/signalk-alternator-engine-on#readme",
+  "homepage": "https://github.com/dgplace/signalk-electrical-engine-on#readme",
   "dependencies": {
   },
   "devDependencies": {
@@ -33,7 +36,7 @@
   },
   "signalk": {
     "appIcon": "./doc/appicon.png",
-    "displayName": "Altenator Engine Status Detector",
+    "displayName": "Electrical Engine Status Detector",
     "recommends": [
       "@meri-imperiumi/signalk-autostate"
     ]
