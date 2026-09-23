@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.1.0] - 2026-09-23
+
+### Added
+- `detection_mode`: `simple` (default, unchanged 2.0.0 behaviour) or `compound`
+- Compound engine-on from DC System power **OR** battery voltage/current/power, with nested HOLD hysteresis
+- Configurable compound paths and ON/HOLD thresholds (Tequila Mockingbird validated defaults)
+- Admin UI copy that OFF is NOT(hold): ON only enters `started`; leaving `started` is HOLD becoming false
+
+### Changed
+- README documents both modes, TM compound example, and npm install of `signalk-electrical-engine-on`
+
 ## [2.0.0] - 2026-09-23
 
 Fork of [signalk-alternator-engine-on](https://github.com/meri-imperiumi/signalk-alternator-engine-on). Package renamed to `signalk-electrical-engine-on`.
