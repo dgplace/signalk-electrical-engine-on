@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.1] - 2026-09-23
+
+### Added
+- Compound `dc_polarity` (`negative` default, `positive`, `absolute`) so the DC System clause can match VRM sign (`≤`) or Signal K `electrical.venus.dcPower` (often `≥` while motoring)
+
+### Changed
+- ON/HOLD DC fields are magnitude thresholds; polarity selects `≤`, `≥`, or `|DC| ≥ |threshold|`
+- README Tequila Mockingbird compound example uses `dc_polarity: positive` with ON 100 W / HOLD 50 W
+
 ## [2.1.0] - 2026-09-23
 
 ### Added
