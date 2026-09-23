@@ -1,7 +1,7 @@
 {
   "name": "signalk-electrical-engine-on",
-  "version": "2.0.0",
-  "description": "Signal K plugin that publishes propulsion started/stopped from a configurable electrical current or power path",
+  "version": "2.1.0",
+  "description": "Signal K plugin that publishes propulsion started/stopped from electrical current, power, or a compound DC/battery rule",
   "main": "index.js",
   "scripts": {
     "pretest": "eslint .",
