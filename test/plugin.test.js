@@ -107,6 +107,11 @@ describe('plugin interface', () => {
     assert.equal(properties.observe_path.default, 'electrical.batteries.277.current');
     assert.equal(properties.threshold.default, 8);
     assert.deepEqual(properties.polarity.enum, ['positive', 'negative', 'absolute']);
+    assert.notEqual(
+      properties.polarity.enum,
+      properties.dc_polarity.enum,
+      'schema enum arrays must not share a reference (SignalK Plugin CI WeakSet walker)',
+    );
     assert.equal(properties.polarity.default, 'negative');
     assert.equal(properties.output_path.default, 'propulsion.main.state');
     assert.equal(properties.voltage_path.default, 'electrical.batteries.277.voltage');
