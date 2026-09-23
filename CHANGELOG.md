@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.2] - 2026-09-23
+
+### Fixed
+- Schema `enum` arrays for `polarity` and `dc_polarity` are distinct copies so SignalK Plugin CI JSON-walk validation no longer reports a false circular reference
+
 ## [2.1.1] - 2026-09-23
 
 ### Added

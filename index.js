@@ -407,7 +407,7 @@ module.exports = (app) => {
     properties: {
       detection_mode: {
         type: 'string',
-        enum: DETECTION_MODES,
+        enum: [...DETECTION_MODES],
         default: DEFAULTS.detection_mode,
         title: 'Detection mode',
         description: 'simple: one observe path with polarity, threshold, and '
@@ -430,7 +430,7 @@ module.exports = (app) => {
       },
       polarity: {
         type: 'string',
-        enum: POLARITIES,
+        enum: [...POLARITIES],
         default: DEFAULTS.polarity,
         title: 'Polarity (simple mode)',
         description: 'positive: value > threshold => started; '
@@ -487,7 +487,7 @@ module.exports = (app) => {
       },
       dc_polarity: {
         type: 'string',
-        enum: POLARITIES,
+        enum: [...POLARITIES],
         default: DEFAULTS.dc_polarity,
         title: 'DC System polarity (compound mode)',
         description: 'How ON/HOLD compare DC System power to the thresholds. '
