@@ -113,8 +113,12 @@ describe('plugin interface', () => {
     assert.equal(properties.current_path.default, 'electrical.batteries.277.current');
     assert.equal(properties.power_path.default, 'electrical.batteries.277.power');
     assert.equal(properties.dc_system_path.default, '');
+    assert.deepEqual(properties.dc_polarity.enum, ['positive', 'negative', 'absolute']);
+    assert.equal(properties.dc_polarity.default, 'negative');
     assert.equal(properties.on_dc_max.default, -100);
     assert.equal(properties.hold_dc_max.default, -50);
+    assert.match(properties.on_dc_max.title, /threshold/);
+    assert.match(properties.dc_polarity.description, /negative \(default/);
     assert.equal(properties.on_voltage_min.default, 14);
     assert.equal(properties.hold_voltage_min.default, 13.7);
     assert.equal(properties.on_current_min.default, 10);
@@ -330,6 +334,7 @@ describe('compound detection', () => {
     assert.equal(simple.detection_mode, 'simple');
     const opts = compoundOptions();
     assert.equal(opts.detection_mode, 'compound');
+    assert.equal(opts.dc_polarity, 'negative');
     assert.equal(opts.on_dc_max, -100);
     assert.equal(opts.hold_dc_max, -50);
     assert.equal(opts.on_voltage_min, 14);
@@ -401,6 +406,119 @@ describe('compound detection', () => {
     assert.equal(nextCompoundStarted(vipOn, opts, false), true);
     assert.equal(nextCompoundStarted(dcOn, opts, false), false);
   });
+
+  it('falls back to negative DC polarity when the value is unknown', () => {
+    const opts = compoundOptions({ dc_polarity: 'sideways' });
+    assert.equal(opts.dc_polarity, 'negative');
+    assert.equal(compoundOn(dcOn, opts), true);
+  });
+});
+
+describe('compound DC polarity', () => {
+  const idleBattery = {
+    voltage: 12.8,
+    current: 0,
+    power: 0,
+  };
+  const vipOn = {
+    voltage: 14.2,
+    current: 15,
+    power: 210,
+  };
+
+  function withDc(dcSystemPower) {
+    return { ...idleBattery, dcSystemPower };
+  }
+
+  it('negative (legacy): ON when DC ≤ on_dc_max, HOLD when DC ≤ hold_dc_max', () => {
+    const opts = compoundOptions();
+    assert.equal(compoundOn(withDc(-150), opts), true);
+    assert.equal(compoundHold(withDc(-150), opts), true);
+    assert.equal(compoundOn(withDc(-100), opts), true);
+    assert.equal(compoundOn(withDc(-99), opts), false);
+    assert.equal(compoundHold(withDc(-50), opts), true);
+    assert.equal(compoundHold(withDc(-49), opts), false);
+    assert.equal(compoundOn(withDc(150), opts), false);
+    assert.equal(compoundHold(withDc(150), opts), false);
+    assert.equal(nextCompoundStarted(withDc(-75), opts, false), false);
+    assert.equal(nextCompoundStarted(withDc(-75), opts, true), true);
+  });
+
+  it('positive: ON when DC ≥ threshold, HOLD when DC ≥ threshold', () => {
+    const opts = compoundOptions({
+      dc_polarity: 'positive',
+      on_dc_max: 100,
+      hold_dc_max: 50,
+    });
+    assert.equal(compoundOn(withDc(150), opts), true);
+    assert.equal(compoundHold(withDc(150), opts), true);
+    assert.equal(compoundOn(withDc(100), opts), true);
+    assert.equal(compoundOn(withDc(99), opts), false);
+    assert.equal(compoundHold(withDc(50), opts), true);
+    assert.equal(compoundHold(withDc(49), opts), false);
+    assert.equal(compoundOn(withDc(-150), opts), false);
+    assert.equal(compoundHold(withDc(-150), opts), false);
+    assert.equal(nextCompoundStarted(withDc(75), opts, false), false);
+    assert.equal(nextCompoundStarted(withDc(75), opts, true), true);
+  });
+
+  it('absolute: ON/HOLD when |DC| ≥ |threshold| for both signs', () => {
+    const opts = compoundOptions({
+      dc_polarity: 'absolute',
+      on_dc_max: 100,
+      hold_dc_max: 50,
+    });
+    assert.equal(compoundOn(withDc(150), opts), true);
+    assert.equal(compoundOn(withDc(-150), opts), true);
+    assert.equal(compoundHold(withDc(150), opts), true);
+    assert.equal(compoundHold(withDc(-150), opts), true);
+    assert.equal(compoundOn(withDc(100), opts), true);
+    assert.equal(compoundOn(withDc(-100), opts), true);
+    assert.equal(compoundOn(withDc(99), opts), false);
+    assert.equal(compoundOn(withDc(-99), opts), false);
+    assert.equal(compoundHold(withDc(50), opts), true);
+    assert.equal(compoundHold(withDc(-50), opts), true);
+    assert.equal(compoundHold(withDc(49), opts), false);
+    assert.equal(compoundHold(withDc(-49), opts), false);
+    assert.equal(nextCompoundStarted(withDc(75), opts, false), false);
+    assert.equal(nextCompoundStarted(withDc(-75), opts, true), true);
+  });
+
+  it('absolute uses |configured threshold| so default −100/−50 still match magnitude', () => {
+    const opts = compoundOptions({ dc_polarity: 'absolute' });
+    assert.equal(compoundOn(withDc(150), opts), true);
+    assert.equal(compoundOn(withDc(-150), opts), true);
+    assert.equal(compoundOn(withDc(99), opts), false);
+    assert.equal(compoundHold(withDc(50), opts), true);
+    assert.equal(compoundHold(withDc(-49), opts), false);
+  });
+
+  it('battery V/I/P OR still starts when DC polarity is positive and DC is below threshold', () => {
+    const opts = compoundOptions({
+      dc_polarity: 'positive',
+      on_dc_max: 100,
+      hold_dc_max: 50,
+    });
+    const samples = { ...vipOn, dcSystemPower: 40 };
+    assert.equal(compoundOn(samples, opts), true);
+    assert.equal(compoundHold(samples, opts), true);
+    assert.equal(nextCompoundStarted(samples, opts, false), true);
+  });
+
+  it('empty dc_system_path still disables the DC clause for every polarity', () => {
+    ['negative', 'positive', 'absolute'].forEach((dcPolarity) => {
+      const opts = compoundOptions({
+        dc_system_path: '',
+        dc_polarity: dcPolarity,
+        on_dc_max: 100,
+        hold_dc_max: 50,
+      });
+      assert.equal(opts.dc_system_path, '');
+      assert.equal(nextCompoundStarted(withDc(150), opts, false), false);
+      assert.equal(nextCompoundStarted(withDc(-150), opts, false), false);
+      assert.equal(nextCompoundStarted({ ...vipOn, dcSystemPower: 150 }, opts, false), true);
+    });
+  });
 });
 
 describe('compound subscribe → publish', () => {
@@ -447,6 +565,62 @@ describe('compound subscribe → publish', () => {
       power: 0,
       dc: -150,
     });
+    assert.equal(publishedState(harness.messages[harness.messages.length - 1]), 'started');
+    plugin.stop();
+  });
+
+  it('publishes started from positive DC polarity (Tequila Mockingbird)', () => {
+    const { harness, plugin } = startCompound({
+      dc_polarity: 'positive',
+      on_dc_max: 100,
+      hold_dc_max: 50,
+    });
+    sendCompound(harness, {
+      voltage: 12.8,
+      current: 0,
+      power: 0,
+      dc: 150,
+    });
+    assert.equal(publishedState(harness.messages[harness.messages.length - 1]), 'started');
+    sendCompound(harness, { dc: 75 });
+    assert.equal(publishedState(harness.messages[harness.messages.length - 1]), 'started');
+    sendCompound(harness, { dc: 40 });
+    assert.equal(publishedState(harness.messages[harness.messages.length - 1]), 'stopped');
+    plugin.stop();
+  });
+
+  it('does not start on negative DC watts when polarity is positive', () => {
+    const { harness, plugin } = startCompound({
+      dc_polarity: 'positive',
+      on_dc_max: 100,
+      hold_dc_max: 50,
+    });
+    sendCompound(harness, {
+      voltage: 12.8,
+      current: 0,
+      power: 0,
+      dc: -150,
+    });
+    assert.equal(publishedState(harness.messages[harness.messages.length - 1]), 'stopped');
+    plugin.stop();
+  });
+
+  it('publishes started from absolute DC polarity on either sign', () => {
+    const { harness, plugin } = startCompound({
+      dc_polarity: 'absolute',
+      on_dc_max: 100,
+      hold_dc_max: 50,
+    });
+    sendCompound(harness, {
+      voltage: 12.8,
+      current: 0,
+      power: 0,
+      dc: -150,
+    });
+    assert.equal(publishedState(harness.messages[harness.messages.length - 1]), 'started');
+    sendCompound(harness, { dc: 40 });
+    assert.equal(publishedState(harness.messages[harness.messages.length - 1]), 'stopped');
+    sendCompound(harness, { dc: 150 });
     assert.equal(publishedState(harness.messages[harness.messages.length - 1]), 'started');
     plugin.stop();
   });

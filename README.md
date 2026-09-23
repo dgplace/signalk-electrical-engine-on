@@ -59,13 +59,21 @@ State machine (ON and HOLD never compete):
 
 **ON** (enter started):
 
-`(dcSystemPower <= on_dc_max)`
+`(DC System power meets on_dc_max per dc_polarity)`
 **OR** `(batteryVoltage >= on_voltage_min` **AND** `batteryCurrent >= on_current_min` **AND** `batteryPower >= on_power_min)`
 
 **HOLD** (stay started):
 
-`(dcSystemPower <= hold_dc_max)`
+`(DC System power meets hold_dc_max per dc_polarity)`
 **OR** `(batteryVoltage >= hold_voltage_min` **AND** `batteryCurrent >= hold_current_min` **AND** `batteryPower >= hold_power_min)`
+
+`dc_polarity` (default `negative`, same three values as simple-mode `polarity`):
+
+| Polarity | ON / HOLD comparison | Typical source |
+| --- | --- | --- |
+| `negative` | `dcSystemPower <= threshold` | Victron VRM Advanced “DC System” (negative while motoring) |
+| `positive` | `dcSystemPower >= threshold` | Signal K `electrical.venus.dcPower` on Tequila Mockingbird (positive while motoring) |
+| `absolute` | `\|dcSystemPower\| >= \|threshold\|` | Either sign; uses the absolute value of the configured threshold |
 
 A clause with no finite sample yet is treated as false (does not crash). If neither ON-true nor a *clear* HOLD-false can be evaluated yet, the previous overall state is kept.
 
@@ -77,17 +85,20 @@ Validated defaults (Tequila Mockingbird, week of VRM data + two confirmed motor 
 | Current path | `electrical.batteries.277.current` | Positive = charging (Victron/VRM) |
 | Power path | `electrical.batteries.277.power` | Battery power, **not** VRM DC System |
 | DC System path | *(empty)* | Optional. Disable that OR clause until set |
-| ON DC max | `−100` W | `dcSystemPower <= -100` |
-| HOLD DC max | `−50` W | `dcSystemPower <= -50` |
+| DC polarity | `negative` | Unset configs keep 2.1.0 VRM-style `≤`. Use `positive` when Signal K DC power is ≥ while motoring |
+| ON DC threshold | `−100` W | Compared per `dc_polarity` (default: `dcSystemPower <= -100`) |
+| HOLD DC threshold | `−50` W | Compared per `dc_polarity` (default: `dcSystemPower <= -50`) |
 | ON V / I / P | `14.0` V, `10` A, `100` W | All three required |
 | HOLD V / I / P | `13.7` V, `5` A, `50` W | All three required |
 | Hold-off | `1500` ms | Same debounce as simple mode |
 
-**DC System path:** Venus dbus `/Dc/System/Power` (VRM “DC System” / System overview). The Signal K [venus plugin](https://github.com/sbender9/signalk-venus-plugin) publishes it as `electrical.{venusName}.dcPower` (often `electrical.venus.dcPower`). Confirm in Data Browser. Leave empty if that path is missing — the voltage/current/power OR clause still works.
+**DC System path:** Venus dbus `/Dc/System/Power` (VRM “DC System” / System overview). The Signal K [venus plugin](https://github.com/sbender9/signalk-venus-plugin) publishes it as `electrical.{venusName}.dcPower` (often `electrical.venus.dcPower`). Confirm the **sign** in Data Browser: VRM Advanced is typically negative while motoring (`dc_polarity: negative`); Tequila Mockingbird’s Signal K path is **positive** while motoring (`dc_polarity: positive`). Leave the path empty if it is missing — the voltage/current/power OR clause still works.
 
-Battery power (`electrical.batteries.277.power`) is **not** DC System.
+Battery power (`electrical.batteries.277.power`) is **not** DC System. `on_dc_max` / `hold_dc_max` keep those field names for compatibility; they are magnitude thresholds. Polarity selects `≤` vs `≥` vs `|DC|`.
 
 #### Tequila Mockingbird example (compound)
+
+Signal K `electrical.venus.dcPower` is positive while motoring, so ON is DC ≥ 100 W and HOLD is DC ≥ 50 W:
 
 ```json
 {
@@ -98,8 +109,9 @@ Battery power (`electrical.batteries.277.power`) is **not** DC System.
   "current_path": "electrical.batteries.277.current",
   "power_path": "electrical.batteries.277.power",
   "dc_system_path": "electrical.venus.dcPower",
-  "on_dc_max": -100,
-  "hold_dc_max": -50,
+  "dc_polarity": "positive",
+  "on_dc_max": 100,
+  "hold_dc_max": 50,
   "on_voltage_min": 14.0,
   "hold_voltage_min": 13.7,
   "on_current_min": 10,
@@ -109,7 +121,7 @@ Battery power (`electrical.batteries.277.power`) is **not** DC System.
 }
 ```
 
-Set `dc_system_path` to the path your Venus/Signal K install actually publishes for DC System. If unsure, leave it `""` and rely on the V/I/P clause.
+A VRM-style install (negative while motoring) can omit `dc_polarity` or set it to `negative` and keep `on_dc_max: -100` / `hold_dc_max: -50`. Set `dc_system_path` to the path your Venus/Signal K install actually publishes. If unsure, leave it `""` and rely on the V/I/P clause.
 
 ## Settings (Admin UI)
 
@@ -123,6 +135,7 @@ Plugin Config settings apply on save (plugin stop/start). You do not need to rei
 - **Output path** — default `propulsion.main.state`
 - **Hold-off** — optional chatter control (both modes)
 - **Compound paths and ON/HOLD thresholds** — voltage, current, power, DC System; `on_*` enter started, `hold_*` stay started
+- **DC System polarity** — compound mode only. `negative` (default): DC ≤ threshold; `positive`: DC ≥ threshold; `absolute`: \|DC\| ≥ \|threshold\|
 - **Use charging mode** — optional Victron Orion XS `chargingMode` override (unchanged from upstream)
 
 ## Install (Signal K on a Raspberry Pi)

@@ -20,6 +20,9 @@ const DEFAULTS = {
   // Empty: DC-system clause disabled until set. Venus (signalk-venus-plugin)
   // typically publishes dbus /Dc/System/Power as electrical.{venusName}.dcPower.
   dc_system_path: '',
+  // negative: VRM "DC System" (motoring is negative watts). positive: Signal K
+  // electrical.venus.dcPower on Tequila Mockingbird (motoring is positive).
+  dc_polarity: 'negative',
   on_dc_max: -100,
   hold_dc_max: -50,
   on_voltage_min: 14.0,
@@ -70,6 +73,9 @@ function resolveOptions(options = {}) {
   const detectionMode = DETECTION_MODES.includes(options.detection_mode)
     ? options.detection_mode
     : DEFAULTS.detection_mode;
+  const dcPolarity = POLARITIES.includes(options.dc_polarity)
+    ? options.dc_polarity
+    : DEFAULTS.dc_polarity;
 
   return {
     detection_mode: detectionMode,
@@ -85,6 +91,7 @@ function resolveOptions(options = {}) {
     current_path: pathOrDefault(options.current_path, DEFAULTS.current_path),
     power_path: pathOrDefault(options.power_path, DEFAULTS.power_path),
     dc_system_path: optionalPath(options.dc_system_path, DEFAULTS.dc_system_path),
+    dc_polarity: dcPolarity,
     on_dc_max: finiteNumber(options.on_dc_max, DEFAULTS.on_dc_max),
     hold_dc_max: finiteNumber(options.hold_dc_max, DEFAULTS.hold_dc_max),
     on_voltage_min: finiteNumber(options.on_voltage_min, DEFAULTS.on_voltage_min),
@@ -154,12 +161,18 @@ function ternaryOr(left, right) {
   return null;
 }
 
-function dcPowerMeets(sample, maxWatts) {
+function dcPowerMeets(sample, threshold, polarity) {
   const power = toFiniteNumber(sample);
   if (power === null) {
     return null;
   }
-  return power <= maxWatts;
+  if (polarity === 'positive') {
+    return power >= threshold;
+  }
+  if (polarity === 'absolute') {
+    return Math.abs(power) >= Math.abs(threshold);
+  }
+  return power <= threshold;
 }
 
 function batteryVipMeets(samples, voltageMin, currentMin, powerMin) {
@@ -181,7 +194,7 @@ function compoundClause(samples, options, kind) {
   const currentMin = isOn ? options.on_current_min : options.hold_current_min;
   const powerMin = isOn ? options.on_power_min : options.hold_power_min;
   const dc = options.dc_system_path
-    ? dcPowerMeets(samples.dcSystemPower, dcMax)
+    ? dcPowerMeets(samples.dcSystemPower, dcMax, options.dc_polarity)
     : false;
   const vip = batteryVipMeets(samples, voltageMin, currentMin, powerMin);
   return ternaryOr(dc, vip);
@@ -472,20 +485,32 @@ module.exports = (app) => {
           + 'the engine). Example from signalk-venus-plugin: '
           + 'electrical.{venusName}.dcPower (often electrical.venus.dcPower).',
       },
+      dc_polarity: {
+        type: 'string',
+        enum: POLARITIES,
+        default: DEFAULTS.dc_polarity,
+        title: 'DC System polarity (compound mode)',
+        description: 'How ON/HOLD compare DC System power to the thresholds. '
+          + 'negative (default, VRM-style): power ≤ threshold. '
+          + 'positive (Signal K electrical.venus.dcPower on Tequila Mockingbird): '
+          + 'power ≥ threshold. absolute: |power| ≥ |threshold|.',
+      },
       on_dc_max: {
         type: 'number',
         default: DEFAULTS.on_dc_max,
-        title: 'ON: DC System power max (W)',
-        description: 'Enter started when DC System power is at or below this '
-          + '(default −100). Used only from stopped.',
+        title: 'ON: DC System power threshold (W)',
+        description: 'Enter started when DC System power meets this threshold '
+          + '(default −100). negative polarity ⇒ power ≤ threshold; '
+          + 'positive ⇒ power ≥ threshold; absolute ⇒ |power| ≥ |threshold|. '
+          + 'Used only from stopped.',
       },
       hold_dc_max: {
         type: 'number',
         default: DEFAULTS.hold_dc_max,
-        title: 'HOLD: DC System power max (W)',
-        description: 'While started, keep started when DC System power is at or '
-          + 'below this (default −50). Leaving started is NOT(hold), not a '
-          + 'separate OFF expression.',
+        title: 'HOLD: DC System power threshold (W)',
+        description: 'While started, keep started when DC System power meets this '
+          + 'threshold (default −50). Same polarity as ON. Leaving started is '
+          + 'NOT(hold), not a separate OFF expression.',
       },
       on_voltage_min: {
         type: 'number',
@@ -544,8 +569,10 @@ module.exports = (app) => {
 
 module.exports.DEFAULTS = DEFAULTS;
 module.exports.DETECTION_MODES = DETECTION_MODES;
+module.exports.POLARITIES = POLARITIES;
 module.exports.resolveOptions = resolveOptions;
 module.exports.isEngineStarted = isEngineStarted;
+module.exports.dcPowerMeets = dcPowerMeets;
 module.exports.compoundOn = compoundOn;
 module.exports.compoundHold = compoundHold;
 module.exports.nextCompoundStarted = nextCompoundStarted;
